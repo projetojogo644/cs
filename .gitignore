@@ -1,0 +1,11 @@
+# Temporary files
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.idea/
+.vscode/
+build/
+bin/
+obj/

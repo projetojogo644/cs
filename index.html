@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity CS - Arena</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <meta name="description" content="Antigravity CS - Um shooter tático de arena com baixa gravidade e combate acelerado.">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Crosshair -->
+        <div id="crosshair"></div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div id="health-container" class="hud-box">
+                <span class="label">VIDA</span>
+                <span id="health-value">100</span>
+            </div>
+            
+            <div id="weapon-info" class="hud-box">
+                <div id="weapon-name">PISTOLA</div>
+                <div id="ammo-container">
+                    <span id="ammo-clip">12</span> / <span id="ammo-reserve">36</span>
+                </div>
+            </div>
+
+            <div id="kill-feed"></div>
+        </div>
+
+        <!-- Menus -->
+        <div id="overlay">
+            <div id="start-menu" class="menu-content">
+                <h1 class="glitch-text" data-text="ANTIGRAVITY">ANTIGRAVITY</h1>
+                <p>Arena Tactical Shooter</p>
+                <button id="start-btn">ENTRAR NA ARENA</button>
+                <div class="controls-hint">
+                    WASD: Movimento | SPACE: Salto (Antigravidade) | LMB: Atirar | 1-3: Mudar Arma
+                </div>
+            </div>
+        </div>
+
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- Import Map for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
