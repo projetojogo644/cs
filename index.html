@@ -1,19 +1,48 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antigravity CS - Arena</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <meta name="description" content="Antigravity CS - Um shooter tático de arena com baixa gravidade e combate acelerado.">
+    <meta name="description"
+        content="Antigravity CS - Um shooter tático de arena com baixa gravidade e combate acelerado.">
 </head>
+
 <body>
     <div id="game-container">
-        <!-- Crosshair -->
-        <div id="crosshair"></div>
+        <!-- Damage Overlay -->
+        <div id="damage-overlay"></div>
+
+        <!-- Reload Indicator -->
+        <div id="reload-indicator">RECARREGANDO...</div>
+
+        <!-- Crosshair (FPS cross style) -->
+        <div id="crosshair">
+            <div class="ch-top"></div>
+            <div class="ch-bottom"></div>
+            <div class="ch-left"></div>
+            <div class="ch-right"></div>
+            <div class="ch-dot"></div>
+        </div>
+
+        <!-- Sniper Scope Overlay -->
+        <div id="scope-overlay">
+            <div class="scope-circle">
+                <div class="scope-line-h"></div>
+                <div class="scope-line-v"></div>
+                <div class="scope-center"></div>
+                <div class="scope-mil scope-mil-1"></div>
+                <div class="scope-mil scope-mil-2"></div>
+                <div class="scope-mil scope-mil-3"></div>
+            </div>
+        </div>
 
         <!-- HUD -->
         <div id="hud">
@@ -21,12 +50,17 @@
                 <span class="label">VIDA</span>
                 <span id="health-value">100</span>
             </div>
-            
+
             <div id="weapon-info" class="hud-box">
                 <div id="weapon-name">PISTOLA</div>
                 <div id="ammo-container">
                     <span id="ammo-clip">12</span> / <span id="ammo-reserve">36</span>
                 </div>
+            </div>
+
+            <div id="grenade-container" class="hud-box">
+                <span class="label">GRANADAS</span>
+                <span id="grenade-count">3</span>
             </div>
 
             <div id="kill-feed"></div>
@@ -39,8 +73,17 @@
                 <p>Arena Tactical Shooter</p>
                 <button id="start-btn">ENTRAR NA ARENA</button>
                 <div class="controls-hint">
-                    WASD: Movimento | SPACE: Salto (Antigravidade) | LMB: Atirar | 1-3: Mudar Arma
+                    WASD: Movimento | SPACE: Salto | LMB: Atirar (parado) | RMB: Mira (Sniper) | 1-3: Armas | 4: Faca |
+                    R: Recarregar
                 </div>
+            </div>
+        </div>
+
+        <!-- Death Screen -->
+        <div id="death-screen">
+            <div class="death-content">
+                <h2 class="death-title">ELIMINADO</h2>
+                <p class="death-sub">Reaparecendo em 3 segundos...</p>
             </div>
         </div>
 
@@ -58,4 +101,5 @@
     </script>
     <script type="module" src="main.js"></script>
 </body>
+
 </html>
