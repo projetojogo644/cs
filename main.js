@@ -51,6 +51,7 @@ class Game {
         this.weaponBobTime = 0;
         this.grenadeCount = 3;
         this.grenades = [];
+        this.isCrouching = false;
         this.ammoValues = {
             1: { current: 12, reserve: 36 },
             2: { current: 30, reserve: 90 },
@@ -540,8 +541,19 @@ class Game {
                 // Move toward player but keep some distance
                 if (distToPlayer > 8) {
                     const speed = enemy.userData.speed * delta;
-                    pos.x += (toPlayerX / distToPlayer) * speed;
-                    pos.z += (toPlayerZ / distToPlayer) * speed;
+                    const moveX = (toPlayerX / distToPlayer) * speed;
+                    const moveZ = (toPlayerZ / distToPlayer) * speed;
+
+                    // Simple wall collision for enemies
+                    const moveDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
+                    const ray = new THREE.Raycaster(pos.clone().add(new THREE.Vector3(0, 1, 0)), moveDir);
+                    ray.far = 1.0;
+                    const hits = ray.intersectObjects(this.walls);
+
+                    if (hits.length === 0) {
+                        pos.x += moveX;
+                        pos.z += moveZ;
+                    }
 
                     // Walking animation
                     enemy.userData.walkTime += delta * 8;
@@ -568,12 +580,29 @@ class Game {
                 const wp = enemy.userData.waypoint;
                 const dx = wp.x - pos.x;
                 const dz = wp.z - pos.z;
-                const dist = Math.sqrt(dx * dx + dz * dz);
+                const distOffset = Math.sqrt(dx * dx + dz * dz);
 
-                if (dist > 1.5) {
+                if (distOffset > 1.5) {
                     const speed = enemy.userData.speed * delta;
-                    pos.x += (dx / dist) * speed;
-                    pos.z += (dz / dist) * speed;
+                    const moveX = (dx / distOffset) * speed;
+                    const moveZ = (dz / distOffset) * speed;
+
+                    // Simple wall collision for enemies
+                    const moveDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
+                    const ray = new THREE.Raycaster(pos.clone().add(new THREE.Vector3(0, 1, 0)), moveDir);
+                    ray.far = 1.0;
+                    const hits = ray.intersectObjects(this.walls);
+
+                    if (hits.length === 0) {
+                        pos.x += moveX;
+                        pos.z += moveZ;
+                    } else {
+                        // Change waypoint if hitting a wall
+                        enemy.userData.waypoint = new THREE.Vector3(
+                            (Math.random() - 0.5) * 70, 0, (Math.random() - 0.5) * 70
+                        );
+                    }
+
                     enemy.rotation.y = Math.atan2(dx, dz);
 
                     enemy.userData.walkTime += delta * 8;
@@ -650,9 +679,30 @@ class Game {
         this.scene.add(bulletMesh);
         this.enemyBullets.push({ mesh: bulletMesh, velocity, life: 2.0 });
 
-        // Check hit (simplified: accuracy-based)
-        if (Math.random() < accuracy && distToPlayer < enemy.userData.shootRange) {
-            this.playerTakeDamage(enemy.userData.shootDamage);
+        // Check hit with wall obstruction
+        const raycaster = new THREE.Raycaster(muzzleWorld, dir);
+        raycaster.far = enemy.userData.shootRange;
+        const allPhysicalTargets = [...this.targets, ...this.walls];
+        const intersects = raycaster.intersectObjects(allPhysicalTargets);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            // Only damage player if they are the first thing hit (ignoring other enemies for simplicity or bots don't hit each other)
+            // But here the player isn't a Mesh in 'targets'. The targets are enemies and walls.
+            // Wait, the player is not in this.targets. The player is the camera/controls.
+            // Let's check distance to player vs distance to first hit.
+            const distToHit = hit.distance;
+
+            if (distToHit >= distToPlayer - 1) { // -1 to give some leeway
+                if (Math.random() < accuracy && distToPlayer < enemy.userData.shootRange) {
+                    this.playerTakeDamage(enemy.userData.shootDamage);
+                }
+            }
+        } else if (distToPlayer < enemy.userData.shootRange) {
+            // No physical objects in between, just use accuracy
+            if (Math.random() < accuracy) {
+                this.playerTakeDamage(enemy.userData.shootDamage);
+            }
         }
     }
 
@@ -678,7 +728,7 @@ class Game {
         }, 50);
 
         if (this.playerHealth <= 0) {
-            this.addKillFeed('JOGADOR', 'INIMIGO', 'ARMA', false);
+            this.addKillFeed('VOCÊ', 'BOT', 'ARMA', false);
             this.playerDeath();
         }
     }
@@ -744,6 +794,10 @@ class Game {
                 case 'Digit3': this.switchWeapon(3); break;
                 case 'Digit4': this.switchWeapon(4); break;
                 case 'KeyR': this.reload(); break;
+                case 'ControlLeft':
+                case 'ControlRight':
+                    this.isCrouching = true;
+                    break;
             }
         };
 
@@ -753,6 +807,10 @@ class Game {
                 case 'KeyS': this.moveBackward = false; break;
                 case 'KeyA': this.moveLeft = false; break;
                 case 'KeyD': this.moveRight = false; break;
+                case 'ControlLeft':
+                case 'ControlRight':
+                    this.isCrouching = false;
+                    break;
             }
         };
 
@@ -913,7 +971,7 @@ class Game {
                 this.hitFlash(hit.object);
 
                 if (enemyGroup.userData.health <= 0) {
-                    this.addKillFeed('INIMIGO', 'VOCÊ', weapon.name, isHS);
+                    this.addKillFeed('BOT', 'VOCÊ', weapon.name, isHS);
                     this.eliminateEnemy(enemyGroup);
                 }
             }
@@ -977,10 +1035,8 @@ class Game {
         reloadIndicator.style.animation = `reloadSpin ${weapon.reloadTime}ms linear`;
 
         setTimeout(() => {
-            const needed = weapon.ammo - ammo.current;
-            const available = Math.min(needed, ammo.reserve);
-            ammo.current += available;
-            ammo.reserve -= available;
+            ammo.current = weapon.ammo; // Set current ammo to full
+            // Infinite reserve: don't subtract from reserve
             this.isReloading = false;
             reloadIndicator.style.display = 'none';
             reloadIndicator.style.animation = '';
@@ -992,7 +1048,8 @@ class Game {
         for (let id = 1; id <= 3; id++) {
             const weapon = WEAPONS[id];
             this.ammoValues[id].current = weapon.ammo;
-            this.ammoValues[id].reserve = weapon.reserve;
+            // For infinite ammo, reserve is always full
+            // this.ammoValues[id].reserve = weapon.reserve;
         }
         this.updateHUD();
     }
@@ -1061,7 +1118,7 @@ class Game {
             document.getElementById('ammo-reserve').textContent = '—';
         } else {
             document.getElementById('ammo-clip').textContent = ammo.current;
-            document.getElementById('ammo-reserve').textContent = ammo.reserve;
+            document.getElementById('ammo-reserve').textContent = '∞'; // Always show infinite for reserve
         }
         document.getElementById('weapon-info').style.borderRightColor = `#${weapon.color.toString(16).padStart(6, '0')}`;
     }
@@ -1082,22 +1139,30 @@ class Game {
 
             // Speed multiplier for knife
             const weapon = WEAPONS[this.currentWeapon];
-            const speedMult = weapon.speedMultiplier || 1.0;
-            const moveSpeed = 80.0 * speedMult;
+            // const speedMult = weapon.speedMultiplier || 1.0; // No longer used directly
+            // const moveSpeed = 80.0 * speedMult; // No longer used directly
 
             // Simple Axis-Aligned Bounding Box (AABB) Collision for player
             const prevPos = this.controls.getObject().position.clone();
 
+            // Vertical movement / Gravity
+            this.velocity.y += CONFIG.GRAVITY * delta;
+
+            // Crouching logic: smooth camera height shift
+            const targetHeight = this.isCrouching ? 0.8 : 1.6;
+            this.camera.position.y += (targetHeight - this.camera.position.y) * 10 * delta;
+
+            // Movement with friction and speed modification
+            const currentSpeed = (this.isCrouching ? CONFIG.SPEED * 0.5 : CONFIG.SPEED) * (weapon.speedMultiplier || 1.0);
             this.velocity.x -= this.velocity.x * 10.0 * delta;
             this.velocity.z -= this.velocity.z * 10.0 * delta;
-            this.velocity.y += CONFIG.GRAVITY * delta;
 
             this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
             this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
             this.direction.normalize();
 
-            if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * moveSpeed * delta;
-            if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * moveSpeed * delta;
+            if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * currentSpeed * delta;
+            if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * currentSpeed * delta;
 
             // Apply movement
             this.controls.moveRight(-this.velocity.x * delta);
