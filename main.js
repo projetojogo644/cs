@@ -19,8 +19,8 @@ const WEAPONS = {
 class Game {
     constructor() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x050510);
-        this.scene.fog = new THREE.FogExp2(0x050510, 0.035);
+        this.scene.background = new THREE.Color(0xdfc98a); // Sand yellow
+        this.scene.fog = new THREE.FogExp2(0xdfc98a, 0.02); // Lighter fog for desert
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
@@ -170,86 +170,73 @@ class Game {
     }
 
     setupLights() {
-        const ambientLight = new THREE.AmbientLight(0x404040, 1);
+        const ambientLight = new THREE.AmbientLight(0xffe5b4, 0.8); // Warm ambient light
         this.scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0x7000ff, 1);
-        sunLight.position.set(50, 50, 50);
+        const sunLight = new THREE.DirectionalLight(0xfff5e1, 1.2); // Bright sun light
+        sunLight.position.set(50, 100, 50);
         sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
         this.scene.add(sunLight);
-
-        // Neon Floor Lights
-        const pointLight = new THREE.PointLight(0x00f2ff, 1, 50);
-        pointLight.position.set(0, 5, 0);
-        this.scene.add(pointLight);
     }
 
     setupArena() {
-        // Floor
+        // Floor - Sand
         const floorGeo = new THREE.PlaneGeometry(100, 100);
         const floorMat = new THREE.MeshStandardMaterial({
-            color: 0x111111,
-            roughness: 0.1,
-            metalness: 0.8
+            color: 0xd2b48c, // Tan color for sand
+            roughness: 0.9,
+            metalness: 0.1
         });
         const floor = new THREE.Mesh(floorGeo, floorMat);
         floor.rotation.x = -Math.PI / 2;
         floor.receiveShadow = true;
         this.scene.add(floor);
 
-        // Grid helper for tech feel
-        const grid = new THREE.GridHelper(100, 20, 0x00f2ff, 0x222222);
-        this.scene.add(grid);
-
-        // Ceiling
-        const ceilGeo = new THREE.PlaneGeometry(100, 100);
-        const ceilMat = new THREE.MeshStandardMaterial({ color: 0x0a0a15, roughness: 0.8, metalness: 0.2 });
-        const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
-        ceiling.rotation.x = Math.PI / 2;
-        ceiling.position.y = 20;
-        this.scene.add(ceiling);
-
-        // Ceiling neon strips
-        for (let i = -40; i <= 40; i += 20) {
-            const stripGeo = new THREE.BoxGeometry(0.1, 0.05, 80);
-            const stripMat = new THREE.MeshBasicMaterial({ color: 0x7000ff });
-            const strip = new THREE.Mesh(stripGeo, stripMat);
-            strip.position.set(i, 19.95, 0);
-            this.scene.add(strip);
-            const stripLight = new THREE.PointLight(0x7000ff, 0.3, 20);
-            stripLight.position.set(i, 19, 0);
-            this.scene.add(stripLight);
-        }
-
-        // Arena Boundaries
+        // Arena Boundaries - Sandstone
         this.createWall(0, 10, -50, 100, 20, 1); // Back
         this.createWall(0, 10, 50, 100, 20, 1);  // Front
         this.createWall(-50, 10, 0, 1, 20, 100); // Left
         this.createWall(50, 10, 0, 1, 20, 100);  // Right
 
-        // Central Platforms (Iceworld style)
-        this.createObstacle(15, 2, 15, 5, 4, 5);
-        this.createObstacle(-15, 2, 15, 5, 4, 5);
-        this.createObstacle(15, 2, -15, 5, 4, 5);
-        this.createObstacle(-15, 2, -15, 5, 4, 5);
+        // Water Puddles
+        const puddleGeo = new THREE.CircleGeometry(2, 32);
+        const puddleMat = new THREE.MeshStandardMaterial({ color: 0x4a90e2, metalness: 0.8, roughness: 0.1, transparent: true, opacity: 0.6 });
+        const puddles = [
+            { x: 5, z: 5, r: 3 },
+            { x: -10, z: -15, r: 2 },
+            { x: 20, z: -5, r: 4 },
+            { x: -18, z: 12, r: 2.5 }
+        ];
+        puddles.forEach(p => {
+            const puddle = new THREE.Mesh(new THREE.CircleGeometry(p.r, 32), puddleMat);
+            puddle.rotation.x = -Math.PI / 2;
+            puddle.position.set(p.x, 0.02, p.z);
+            this.scene.add(puddle);
+        });
 
-        // Floating Platforms for Antigravity jumps
-        this.createObstacle(0, 8, 0, 10, 0.5, 10, 0x7000ff);
+        // Obstacles - Desert Stones
+        const stoneColor = 0x8b4513;
+        this.createObstacle(15, 2, 15, 5, 4, 5, stoneColor);
+        this.createObstacle(-15, 2, 15, 5, 4, 5, stoneColor);
+        this.createObstacle(15, 2, -15, 5, 4, 5, stoneColor);
+        this.createObstacle(-15, 2, -15, 5, 4, 5, stoneColor);
 
-        // Second Floor (Glass catwalks and platforms at 12m height)
-        this.createObstacle(20, 12, 20, 8, 0.5, 8, 0x111111);
-        this.createObstacle(-20, 12, -20, 8, 0.5, 8, 0x111111);
+        // Platforms
+        this.createObstacle(0, 8, 0, 10, 0.5, 10, stoneColor);
+        this.createObstacle(20, 12, 20, 8, 0.5, 8, 0xa0522d);
+        this.createObstacle(-20, 12, -20, 8, 0.5, 8, 0xa0522d);
 
-        // Catwalk bridge
-        const catwalkMat = new THREE.MeshStandardMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.3 });
-        const bridge = new THREE.Mesh(new THREE.BoxGeometry(40, 0.2, 3), catwalkMat);
+        // Bridge
+        const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(40, 0.2, 3), bridgeMat);
         bridge.position.set(0, 12, 0);
         this.scene.add(bridge);
         this.walls.push(bridge);
 
-        // Stairs to the first floor platform
+        // Stairs
         this.createStairs(-8, 0, -8, 8, 4);
-        // Stairs to the second floor
         this.createStairs(10, 8, 10, 4, 3);
 
         // Active Enemies (humanoid characters that shoot)
@@ -376,7 +363,7 @@ class Game {
 
     createWall(x, y, z, w, h, d) {
         const geo = new THREE.BoxGeometry(w, h, d);
-        const mat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+        const mat = new THREE.MeshStandardMaterial({ color: 0xbc8f8f }); // Rosy brown for sandstone
         const wall = new THREE.Mesh(geo, mat);
         wall.position.set(x, y, z);
         wall.castShadow = true;
@@ -894,8 +881,13 @@ class Game {
         const raycaster = new THREE.Raycaster();
 
         // Add recoil spread to camera direction
-        const spreadX = (Math.random() - 0.5) * this.recoilAmount * 0.2;
-        const spreadY = (Math.random() - 0.5) * this.recoilAmount * 0.2;
+        let movementSpread = 0;
+        if (this.moveForward || this.moveBackward || this.moveLeft || this.moveRight) {
+            movementSpread = 0.05; // Base spread when moving
+        }
+
+        const spreadX = (Math.random() - 0.5) * (this.recoilAmount * 0.2 + movementSpread);
+        const spreadY = (Math.random() - 0.5) * (this.recoilAmount * 0.2 + movementSpread);
 
         raycaster.setFromCamera(new THREE.Vector2(spreadX, spreadY), this.camera);
         raycaster.far = 100;
@@ -1253,6 +1245,18 @@ class Game {
 }
 
 // Start Game
-window.onload = () => {
-    new Game();
-};
+function initGame() {
+    try {
+        console.log("Iniciando Antigravity...");
+        new Game();
+        console.log("Jogo carregado com sucesso!");
+    } catch (error) {
+        console.error("Erro ao iniciar o jogo:", error);
+    }
+}
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initGame();
+} else {
+    window.addEventListener('load', initGame);
+}
