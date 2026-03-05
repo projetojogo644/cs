@@ -49,12 +49,17 @@ class Game {
         this.recoilAmount = 0;
         this.recoilRecovery = 0;
         this.weaponBobTime = 0;
+        this.grenadeCount = 3;
+        this.grenades = [];
         this.ammoValues = {
             1: { current: 12, reserve: 36 },
             2: { current: 30, reserve: 90 },
             3: { current: 5, reserve: 15 },
             4: { current: Infinity, reserve: Infinity }
         };
+
+        // Audio Context for procedural sounds
+        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         this.walls = [];
         this.targets = [];
@@ -231,8 +236,21 @@ class Game {
         // Floating Platforms for Antigravity jumps
         this.createObstacle(0, 8, 0, 10, 0.5, 10, 0x7000ff);
 
-        // Stairs to the platform (a spiral or simple ramp of blocks)
+        // Second Floor (Glass catwalks and platforms at 12m height)
+        this.createObstacle(20, 12, 20, 8, 0.5, 8, 0x111111);
+        this.createObstacle(-20, 12, -20, 8, 0.5, 8, 0x111111);
+
+        // Catwalk bridge
+        const catwalkMat = new THREE.MeshStandardMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.3 });
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(40, 0.2, 3), catwalkMat);
+        bridge.position.set(0, 12, 0);
+        this.scene.add(bridge);
+        this.walls.push(bridge);
+
+        // Stairs to the first floor platform
         this.createStairs(-8, 0, -8, 8, 4);
+        // Stairs to the second floor
+        this.createStairs(10, 8, 10, 4, 3);
 
         // Active Enemies (humanoid characters that shoot)
         for (let i = 0; i < 6; i++) {
@@ -753,6 +771,14 @@ class Game {
 
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', onKeyUp);
+
+        // Throw grenade with 'G'
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyG' && this.controls.isLocked && this.playerAlive) {
+                this.throwGrenade();
+            }
+        });
+
         document.addEventListener('mousedown', (e) => {
             if (e.button === 0) { // Left click = fire
                 this.isFiring = true;
@@ -810,6 +836,10 @@ class Game {
         const now = Date.now();
 
         if (now - this.lastFireTime < weapon.fireRate) return;
+
+        // Play shoot sound
+        const soundType = weapon.isMelee ? 'knife' : (this.currentWeapon === 3 ? 'sniper' : 'shoot');
+        this.playSound(soundType);
 
         // Knife (melee) - no ammo needed
         if (weapon.isMelee) {
@@ -947,6 +977,7 @@ class Game {
         if (ammo.reserve <= 0) return; // No reserve ammo
 
         this.isReloading = true;
+        this.playSound('reload');
 
         // Show reload indicator
         const reloadIndicator = document.getElementById('reload-indicator');
@@ -1032,6 +1063,7 @@ class Game {
         const ammo = this.ammoValues[this.currentWeapon];
 
         document.getElementById('weapon-name').textContent = weapon.name;
+        document.getElementById('grenade-count').textContent = this.grenadeCount;
         if (weapon.isMelee) {
             document.getElementById('ammo-clip').textContent = '∞';
             document.getElementById('ammo-reserve').textContent = '—';
@@ -1048,8 +1080,9 @@ class Game {
         const time = performance.now();
         const delta = Math.min((time - (this.prevTime || time)) / 1000, 0.1);
 
-        // Always update enemies (they move even when menu is open)
+        // Always update enemies
         this.updateEnemies(delta);
+        this.updateGrenades(delta);
 
         if (this.controls.isLocked && this.playerAlive) {
             // Recoil Recovery
@@ -1140,6 +1173,82 @@ class Game {
 
         this.prevTime = time;
         this.renderer.render(this.scene, this.camera);
+    }
+
+    // === GRENADA & SOUND SYSTEM ===
+    playSound(type) {
+        if (!this.audioCtx) return;
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(this.audioCtx.destination);
+        const now = this.audioCtx.currentTime;
+
+        if (type === 'shoot') {
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'sniper') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.exponentialRampToValueAtTime(20, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2);
+        } else if (type === 'explosion') {
+            const noise = this.audioCtx.createBufferSource();
+            const buffer = this.audioCtx.createBuffer(1, this.audioCtx.sampleRate * 0.5, this.audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < buffer.length; i++) data[i] = Math.random() * 2 - 1;
+            noise.buffer = buffer;
+            const filter = this.audioCtx.createBiquadFilter();
+            filter.type = 'lowpass'; filter.frequency.setValueAtTime(800, now);
+            noise.connect(filter); filter.connect(gain);
+            gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            noise.start(now); noise.stop(now + 0.5);
+        } else if (type === 'reload') {
+            osc.frequency.setValueAtTime(400, now); gain.gain.setValueAtTime(0.05, now);
+            osc.start(now); osc.stop(now + 0.2);
+        }
+    }
+
+    throwGrenade() {
+        if (this.grenadeCount <= 0) return;
+        this.grenadeCount--; this.updateHUD();
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshStandardMaterial({ color: 0x445500 }));
+        mesh.position.copy(this.camera.position).add(new THREE.Vector3(0, -0.2, -0.3).applyQuaternion(this.camera.quaternion));
+        const velocity = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).multiplyScalar(15).add(new THREE.Vector3(0, 5, 0));
+        this.scene.add(mesh); this.grenades.push({ mesh, velocity, timer: 2.0 });
+        this.playSound('reload');
+    }
+
+    updateGrenades(delta) {
+        for (let i = this.grenades.length - 1; i >= 0; i--) {
+            const g = this.grenades[i];
+            g.timer -= delta;
+            g.velocity.y += CONFIG.GRAVITY * delta;
+            g.mesh.position.add(g.velocity.clone().multiplyScalar(delta));
+            if (g.mesh.position.y < 0.15) { g.mesh.position.y = 0.15; g.velocity.y *= -0.5; g.velocity.multiplyScalar(0.8); }
+            if (g.timer <= 0) { this.explode(g.mesh.position); this.scene.remove(g.mesh); this.grenades.splice(i, 1); }
+        }
+    }
+
+    explode(pos) {
+        this.playSound('explosion');
+        const flash = new THREE.Mesh(new THREE.SphereGeometry(4), new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.8 }));
+        flash.position.copy(pos); this.scene.add(flash);
+        setTimeout(() => this.scene.remove(flash), 100);
+        for (const enemy of this.enemies) {
+            if (!enemy.parent) continue;
+            const dist = pos.distanceTo(enemy.position);
+            if (dist < 6) {
+                enemy.userData.health -= (1 - dist / 6) * 150;
+                if (enemy.userData.health <= 0) this.eliminateEnemy(enemy);
+            }
+        }
+        if (pos.distanceTo(this.controls.getObject().position) < 6) this.playerTakeDamage(50);
     }
 }
 
