@@ -546,8 +546,8 @@ class Game {
 
                     // Simple wall collision for enemies
                     const moveDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
-                    const ray = new THREE.Raycaster(pos.clone().add(new THREE.Vector3(0, 1, 0)), moveDir);
-                    ray.far = 1.0;
+                    const ray = new THREE.Raycaster(pos.clone().add(new THREE.Vector3(0, 0.5, 0)), moveDir);
+                    ray.far = 1.5;
                     const hits = ray.intersectObjects(this.walls);
 
                     if (hits.length === 0) {
@@ -589,8 +589,8 @@ class Game {
 
                     // Simple wall collision for enemies
                     const moveDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
-                    const ray = new THREE.Raycaster(pos.clone().add(new THREE.Vector3(0, 1, 0)), moveDir);
-                    ray.far = 1.0;
+                    const ray = new THREE.Raycaster(pos.clone().add(new THREE.Vector3(0, 0.5, 0)), moveDir);
+                    ray.far = 1.5;
                     const hits = ray.intersectObjects(this.walls);
 
                     if (hits.length === 0) {
@@ -1024,7 +1024,7 @@ class Game {
 
         const ammo = this.ammoValues[this.currentWeapon];
         if (ammo.current >= weapon.ammo) return; // Already full
-        if (ammo.reserve <= 0) return; // No reserve ammo
+        if (ammo.current >= weapon.ammo) return; // Already full
 
         this.isReloading = true;
         this.playSound('reload');
@@ -1199,9 +1199,9 @@ class Game {
 
             this.controls.getObject().position.y += (this.velocity.y * delta);
 
-            if (this.controls.getObject().position.y < 1.6) {
+            if (this.controls.getObject().position.y < targetHeight) {
                 this.velocity.y = 0;
-                this.controls.getObject().position.y = 1.6;
+                this.controls.getObject().position.y = targetHeight;
                 this.canJump = true;
             }
             // Ceiling collision
