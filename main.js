@@ -3,9 +3,9 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 
 // Configuration
 const CONFIG = {
-    GRAVITY: -15, // Reduced gravity (Earth is -30 for FPS feel)
-    JUMP_FORCE: 8,
-    SPEED: 8,
+    GRAVITY: -28, // Gravidade mais pesada para evitar "flutuação"
+    JUMP_FORCE: 10,
+    SPEED: 100, // Velocidade de deslocamento equilibrada
     SENSITIVITY: 0.002
 };
 
@@ -478,7 +478,7 @@ class Game {
         // Enemy data — WEAKER enemies
         enemy.userData.isEnemy = true;
         enemy.userData.health = 40; // much weaker
-        enemy.userData.speed = 1.0 + Math.random() * 1.5;
+        enemy.userData.speed = 8.0 + Math.random() * 4.0; // Velocidade maior para bots não ficarem parados
         enemy.userData.walkTime = Math.random() * Math.PI * 2;
         enemy.userData.leftArm = leftArm;
         enemy.userData.rightArm = rightArm;
@@ -1153,47 +1153,69 @@ class Game {
             this.camera.position.y += (targetHeight - this.camera.position.y) * 10 * delta;
 
             // Movement with friction and speed modification
-            const currentSpeed = (this.isCrouching ? CONFIG.SPEED * 0.5 : CONFIG.SPEED) * (weapon.speedMultiplier || 1.0);
-            this.velocity.x -= this.velocity.x * 10.0 * delta;
-            this.velocity.z -= this.velocity.z * 10.0 * delta;
-
+            // Movement logic: CRISP and SNAPPY
+            const currentSpeed = (this.isCrouching ? CONFIG.SPEED * 0.4 : CONFIG.SPEED) * (weapon.speedMultiplier || 1.0);
+            
+            // Calculate move direction based on keys
             this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
             this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
             this.direction.normalize();
 
-            if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * currentSpeed * delta;
-            if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * currentSpeed * delta;
+            // SNAPPY ACCELERATION: Reach top speed almost instantly
+            const friction = 15; // High friction for instant stop
+            const accel = 20;    // High acceleration for instant start
+            
+            const targetVelX = this.direction.x * currentSpeed;
+            const targetVelZ = this.direction.z * currentSpeed;
+            
+            this.velocity.x += (targetVelX - this.velocity.x) * accel * delta;
+            this.velocity.z += (targetVelZ - this.velocity.z) * accel * delta;
 
-            // Apply movement
-            this.controls.moveRight(-this.velocity.x * delta);
-            this.controls.moveForward(-this.velocity.z * delta);
-
-            // Collision Detection with Walls
+            // --- COLLISION WITH SLIDING ---
             const playerPos = this.controls.getObject().position;
-            const playerBox = new THREE.Box3().setFromCenterAndSize(
-                playerPos,
-                new THREE.Vector3(1.0, 2.0, 1.0) // Slightly smaller collision
-            );
+            const playerRadius = 0.5; // Collision width
 
+            // 1. Try X movement
+            this.controls.moveRight(-this.velocity.x * delta);
+            let hitX = false;
             for (const wall of this.walls) {
                 const wallBox = new THREE.Box3().setFromObject(wall);
+                const playerBox = new THREE.Box3().setFromCenterAndSize(playerPos, new THREE.Vector3(playerRadius, 1.8, playerRadius));
                 if (playerBox.intersectsBox(wallBox)) {
-                    // Step up logic for stairs: if collision is low, move player up
-                    const wallMaxY = wallBox.max.y;
-                    const feetY = playerPos.y - 1.6;
-                    const diff = wallMaxY - feetY;
+                    hitX = true; break;
+                }
+            }
+            if (hitX) {
+                playerPos.x = prevPos.x;
+                playerPos.z = prevPos.z; // Revert X (which might affect Z in PointerLock)
+                this.velocity.x = 0;
+            }
 
-                    if (diff > 0 && diff < 0.6) { // Can step up to 0.6m
-                        playerPos.y = wallMaxY + 1.6;
+            // 2. Try Z movement
+            const posAfterX = playerPos.clone();
+            this.controls.moveForward(-this.velocity.z * delta);
+            let hitZ = false;
+            for (const wall of this.walls) {
+                const wallBox = new THREE.Box3().setFromObject(wall);
+                const playerBox = new THREE.Box3().setFromCenterAndSize(playerPos, new THREE.Vector3(playerRadius, 1.8, playerRadius));
+                if (playerBox.intersectsBox(wallBox)) { hitZ = true; break; }
+            }
+            if (hitZ) {
+                playerPos.copy(posAfterX);
+                this.velocity.z = 0;
+            }
+
+            // Step up logic (re-applied manually for height)
+            for (const wall of this.walls) {
+                const wallBox = new THREE.Box3().setFromObject(wall);
+                const feetBox = new THREE.Box3().setFromCenterAndSize(playerPos, new THREE.Vector3(playerRadius, 0.1, playerRadius));
+                if (feetBox.intersectsBox(wallBox)) {
+                    const diff = wallBox.max.y - (playerPos.y - 1.6);
+                    if (diff > 0 && diff < 0.6) {
+                        playerPos.y = wallBox.max.y + 1.6;
                         this.velocity.y = 0;
                         this.canJump = true;
-                    } else {
-                        playerPos.x = prevPos.x;
-                        playerPos.z = prevPos.z;
-                        this.velocity.x = 0;
-                        this.velocity.z = 0;
                     }
-                    break;
                 }
             }
 
